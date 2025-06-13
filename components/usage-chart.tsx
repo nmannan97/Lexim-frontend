@@ -30,15 +30,12 @@ export function UsageChart() {
     return match ? parseFloat(match[0]) : 0
   }
 
-  // Group by unique user_name
-  const userNameToUserIds: Record<string, string[]> = {}
+  // Group users by user_name
+  const groupedUsers: Record<string, any[]> = {}
   for (const [userId, user] of Object.entries(users)) {
-    const firstTask = Object.values(user.tasks || {})[0]
-    const name = firstTask?.user_name || "Unknown User"
-    if (!userNameToUserIds[name]) {
-      userNameToUserIds[name] = []
-    }
-    userNameToUserIds[name].push(userId)
+    const name = user.user_name || "Unknown User"
+    if (!groupedUsers[name]) groupedUsers[name] = []
+    groupedUsers[name].push({ ...user, run_id: userId })
   }
 
   const aggregatedTotals = Object.values(users).reduce(
@@ -71,7 +68,7 @@ export function UsageChart() {
                 onChange={(e) => setSelectedUser(e.target.value)}
               >
                 <option value="">All users</option>
-                {Object.keys(userNameToUserIds).sort().map((userName) => (
+                {Object.keys(groupedUsers).map((userName) => (
                   <option key={userName} value={userName}>
                     {userName}
                   </option>
@@ -117,38 +114,38 @@ export function UsageChart() {
           )}
 
           <div className="space-y-6">
-            {Object.entries(userNameToUserIds)
+            {Object.entries(groupedUsers)
               .filter(([userName]) => !selectedUser || userName === selectedUser)
-              .map(([userName, userIds]) => (
+              .map(([userName, userRuns]) => (
                 <div key={userName} className="space-y-6">
                   <div className="text-md font-semibold text-gray-900">{userName}</div>
-                  {userIds.map((userId) => {
-                    const user = users[userId]
-                    return (
-                      <div key={userId} className="space-y-4">
-                        <div className="p-4 border rounded-md bg-white shadow">
-                          <div className="font-semibold text-gray-900 mb-2">Task Usage</div>
+                  {userRuns.map((user, index) => (
+                    <div key={index} className="p-4 border rounded-md bg-white shadow">
+                      <div className="font-semibold text-gray-900 mb-2">Run name: {user.task_name}</div>
+                      <div className="text-sm text-gray-700 mb-1">Input Tokens: {user.tokens_in.toLocaleString()}</div>
+                      <div className="text-sm text-gray-700 mb-1">Output Tokens: {user.tokens_out.toLocaleString()}</div>
+                      <div className="text-sm text-gray-700 mb-1">Compute Time: {user.duration}</div>
+                      <div className="text-sm text-gray-700 mb-1">Run Date: {user.run_datetime ?? "N/A"}</div>
+
+                      {user.tasks && (
+                        <div className="mt-3">
+                          <div className="font-semibold text-gray-800 mb-1">Task Usage</div>
                           {Object.entries(user.tasks).map(([taskId, task]) => (
                             <div key={taskId} className="mb-2 p-2 border rounded bg-gray-50">
                               <div className="text-sm font-medium text-gray-700">
                                 Task by: <span className="text-gray-900">{task.user_name ?? "Unknown"}</span>
                               </div>
-                              <div className="text-xs text-muted-foreground">Task ID: {taskId}</div>
+                              <div className="text-xs text-muted-foreground">Task name: {task.task_name}</div>
                               <div className="text-sm text-gray-700">Input Tokens: {task.tokens_in.toLocaleString()}</div>
                               <div className="text-sm text-gray-700">Output Tokens: {task.tokens_out.toLocaleString()}</div>
                               <div className="text-sm text-gray-700">Compute Time: {task.duration}</div>
-                              <div className="text-sm text-gray-700">
-                                Date created:{" "}
-                                {task.run_datetime
-                                  ? new Date(task.run_datetime).toLocaleString()
-                                  : "N/A"}
-                              </div>
+                              <div className="text-sm text-gray-700">Date created: {task.run_datetime ?? "N/A"}</div>
                             </div>
                           ))}
                         </div>
-                      </div>
-                    )
-                  })}
+                      )}
+                    </div>
+                  ))}
                 </div>
               ))}
           </div>
