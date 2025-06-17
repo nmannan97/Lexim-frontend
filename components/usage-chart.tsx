@@ -38,16 +38,18 @@ export function UsageChart() {
     groupedUsers[name].push({ ...user, run_id: userId })
   }
 
-  const aggregatedTotals = Object.values(users).reduce(
-    (acc, user) => {
-      acc.tokens_in += user.tokens_in || 0
-      acc.tokens_out += user.tokens_out || 0
-      acc.minutes += parseMinutes(user.duration || "0")
-      return acc
-    },
-    { tokens_in: 0, tokens_out: 0, minutes: 0 }
-  )
+  const totalDuration = Object.values(users).reduce((acc, user) => {
+    // Extract numeric part of "0.00 minutes" string and convert to float
+    const durationStr = user.duration_minutes || "0.00 minutes";
+    const minutes = parseFloat(durationStr.replace(" minutes", "").replace(/,/g, "")) || 0;
 
+    acc.tokens_in += user.tokens_in || 0;
+    acc.tokens_out += user.tokens_out || 0;
+    acc.minutes += minutes;
+
+    return acc;
+  }, { tokens_in: 0, tokens_out: 0, minutes: 0 });
+  
   return (
     <div className="space-y-6">
       <Card>
@@ -107,9 +109,15 @@ export function UsageChart() {
           {selectedUser === null && (
             <div className="p-4 border rounded-md bg-blue-50 mb-6">
               <div className="text-md font-semibold text-blue-900">All Users Combined</div>
-              <div className="text-sm text-blue-800">Total Input Tokens: {aggregatedTotals.tokens_in.toLocaleString()}</div>
-              <div className="text-sm text-blue-800">Total Output Tokens: {aggregatedTotals.tokens_out.toLocaleString()}</div>
-              <div className="text-sm text-blue-800">Total Compute Time: {aggregatedTotals.minutes.toFixed(2)} minutes</div>
+              <div className="text-sm text-blue-800">
+                Total Input Tokens: {totalDuration.tokens_in.toLocaleString()}
+              </div>
+              <div className="text-sm text-blue-800">
+                Total Output Tokens: {totalDuration.tokens_out.toLocaleString()}
+              </div>
+              <div className="text-sm text-blue-800">
+                Total Compute Time: {totalDuration.minutes.toFixed(2)} minutes
+              </div>
             </div>
           )}
 
@@ -124,7 +132,7 @@ export function UsageChart() {
                       <div className="font-semibold text-gray-900 mb-2">Run name: {user.task_name}</div>
                       <div className="text-sm text-gray-700 mb-1">Input Tokens: {user.tokens_in.toLocaleString()}</div>
                       <div className="text-sm text-gray-700 mb-1">Output Tokens: {user.tokens_out.toLocaleString()}</div>
-                      <div className="text-sm text-gray-700 mb-1">Compute Time: {user.duration}</div>
+                      <div className="text-sm text-gray-700 mb-1">Compute Time: {user.duration_minutes.toLocaleString()}</div>
                       <div className="text-sm text-gray-700 mb-1">Run Date: {user.run_datetime ?? "N/A"}</div>
 
                       {user.tasks && (
@@ -138,7 +146,7 @@ export function UsageChart() {
                               <div className="text-xs text-muted-foreground">Task name: {task.task_name}</div>
                               <div className="text-sm text-gray-700">Input Tokens: {task.tokens_in.toLocaleString()}</div>
                               <div className="text-sm text-gray-700">Output Tokens: {task.tokens_out.toLocaleString()}</div>
-                              <div className="text-sm text-gray-700">Compute Time: {task.duration}</div>
+                              <div className="text-sm text-gray-700">Compute Time: {task.duration_minutes.toLocaleString()}</div>
                               <div className="text-sm text-gray-700">Date created: {task.run_datetime ?? "N/A"}</div>
                             </div>
                           ))}

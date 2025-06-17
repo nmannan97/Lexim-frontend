@@ -9,50 +9,55 @@ import { Progress } from "@/components/ui/progress"
 import { Cpu, HardDrive, MessageSquare, Plus, TrendingUp, Calendar, DollarSign, AlertTriangle } from "lucide-react"
 import { TopOffModal } from "@/components/top-off-modal"
 import { UsageChart } from "@/components/usage-chart"
+import { UserOverview } from "@/components/user-overview"
 import { BillingHistory } from "@/components/billing-history"
-import { PaymentMethods } from "@/components/payment-methods"
+import { TaskHistory } from "@/components/task-history"
 
 export default function BillingDashboard() {
   const [isTopOffOpen, setIsTopOffOpen] = useState(false)
   const [currentBalance, setCurrentBalance] = useState(5000)
-  const [tokens, setTokens] = useState();
-  const [time, setTime] = useState()
-  const [users, setUsers] = useState([])
-  
+  const [usageSummary, setUsageSummary] = useState({ tokens_in: 0, tokens_out: 0, minutes: 0 })
+
   useEffect(() => {
-    // Make sure to use async inside useEffect for the fetch
-    fetch("http://127.0.0.1:5000/")
+    fetch("http://127.0.0.1:5000/users")
       .then(res => res.json())
       .then(data => {
-        console.log(data);     // Log it for debugging
-        setTokens(data);       // Save it to state
+        const totals = Object.values(data).reduce(
+          (acc, user) => {
+            acc.tokens_in += user.tokens_in || 0
+            acc.tokens_out += user.tokens_out || 0
+            const minutes = parseFloat(user.duration_minutes?.replace(" minutes", "")) || 0
+            acc.minutes += minutes
+            return acc
+          },
+          { tokens_in: 0, tokens_out: 0, minutes: 0 }
+        )
+        setUsageSummary(totals)
       })
-      .catch(err => console.error("Fetch error:", err));
+      .catch(err => console.error("/users fetch error:", err))
+  }, [])
 
-      fetch("http://127.0.0.1:5000/time-count")
-      .then(res => res.json())
-      .then(data => {
-        console.log(data);     // Log it for debugging
-        setTime(data);       // Save it to state
-      })
-      .catch(err => console.error("Fetch error:", err));
-
-  }, []);  // The empty dependency list means it runs only once
-  
   const usageData = {
-    cpu: { used: 156.7, limit: 200, cost: 23.45, unit: "hours" },
-    storage: { used: 2.3, limit: 5, cost: 4.6, unit: "GB" },
-    tokens: {used: tokens ? parseFloat(tokens.inputTokens.replace(/,/g, '')) : 0, limit: 100000, cost: tokens ? parseFloat(tokens.outputCharge.replace(/,/g, '')) +  parseFloat(tokens.inputCharge.replace(/,/g, '')) : 0, unit: "tokens" },
-    time : {timeCompute: time ? parseFloat(time.timeComputeHours.replace(/,/g, '')) : 0, computeLimit: 10}, 
+    tokens: {
+      used: usageSummary.tokens_in + usageSummary.tokens_out,
+      limit: 10000000,
+      cost: ((usageSummary.tokens_in + usageSummary.tokens_out) / 1000) * 1.15,
+      unit: "tokens"
+    },
+    time: {
+      timeCompute: usageSummary.minutes / 60,
+      computeLimit: 10
+    },
+    cpu: { used: 0, limit: 1, cost: 0, unit: "" },
+    storage: { used: 2.3, limit: 5, cost: 4.6, unit: "GB" }
   }
 
-  const totalUsageCost = Object.values(usageData).reduce((sum, item) => sum + item.cost, 0)
+  const totalUsageCost = usageData.tokens.cost + usageData.storage.cost
   const isLowBalance = currentBalance < 20
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Billing Dashboard</h1>
@@ -64,7 +69,6 @@ export default function BillingDashboard() {
           </Button>
         </div>
 
-        {/* Balance Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card className={`${isLowBalance ? "border-orange-200 bg-orange-50" : ""}`}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -83,7 +87,7 @@ export default function BillingDashboard() {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${usageData.tokens.cost.toLocaleString()}</div>
+              <div className="text-2xl font-bold">${usageData.tokens.cost.toFixed(2)}</div>
               <p className="text-xs text-muted-foreground">+12% from last month</p>
             </CardContent>
           </Card>
@@ -94,7 +98,7 @@ export default function BillingDashboard() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{tokens && `$${tokens.inputCharge}`}</div>
+              <div className="text-2xl font-bold">${((usageSummary.tokens_in / 1000) * 1.15).toFixed(2)}</div>
               <p className="text-xs text-muted-foreground">Charged per input of items</p>
             </CardContent>
           </Card>
@@ -105,13 +109,12 @@ export default function BillingDashboard() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{tokens && `$${tokens.outputCharge}`}</div>
+              <div className="text-2xl font-bold">${((usageSummary.tokens_out / 1000) * 1.15).toFixed(2)}</div>
               <p className="text-xs text-muted-foreground">Charged per output of the LLM</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Usage Breakdown */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -123,12 +126,10 @@ export default function BillingDashboard() {
             <CardContent>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>
-                    {usageData.time.timeCompute} / { usageData.time.computeLimit} hours
-                  </span>
+                  <span>{usageData.time.timeCompute.toFixed(2)} / {usageData.time.computeLimit} hours</span>
                   <span>{((usageData.time.timeCompute / usageData.time.computeLimit) * 100).toFixed(1)}%</span>
                 </div>
-                <Progress value={(usageData.cpu.used / usageData.cpu.limit) * 100} />
+                <Progress value={(usageData.time.timeCompute / usageData.time.computeLimit) * 100} />
               </div>
             </CardContent>
           </Card>
@@ -144,9 +145,7 @@ export default function BillingDashboard() {
             <CardContent>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>
-                    {usageData.storage.used} / {usageData.storage.limit} GB
-                  </span>
+                  <span>{usageData.storage.used} / {usageData.storage.limit} GB</span>
                   <span>{((usageData.storage.used / usageData.storage.limit) * 100).toFixed(1)}%</span>
                 </div>
                 <Progress value={(usageData.storage.used / usageData.storage.limit) * 100} />
@@ -160,14 +159,12 @@ export default function BillingDashboard() {
                 <MessageSquare className="h-4 w-4" />
                 Token Usage
               </CardTitle>
-              <Badge variant="secondary">${usageData.tokens.cost.toLocaleString()}</Badge>
+              <Badge variant="secondary">${usageData.tokens.cost.toFixed(2)}</Badge>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>
-                    {(usageData.tokens.used / 1000).toFixed(0)}K / {(usageData.tokens.limit / 1000).toFixed(0)}K tokens
-                  </span>
+                  <span>{(usageData.tokens.used / 1000).toFixed(0)}K / {(usageData.tokens.limit / 1000).toFixed(0)}K tokens</span>
                   <span>{((usageData.tokens.used / usageData.tokens.limit) * 100).toFixed(1)}%</span>
                 </div>
                 <Progress value={(usageData.tokens.used / usageData.tokens.limit) * 100} />
@@ -176,24 +173,28 @@ export default function BillingDashboard() {
           </Card>
         </div>
 
-        {/* Detailed View */}
-        <Tabs defaultValue="usage" className="space-y-4">
+        <Tabs defaultValue="daily-usage" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="usage">Usage Analytics</TabsTrigger>
-            <TabsTrigger value="history">Billing History</TabsTrigger>
-            <TabsTrigger value="payment">Payment Methods</TabsTrigger>
+            <TabsTrigger value="daily-usage">Daily usage overview</TabsTrigger>
+            <TabsTrigger value="user-usage">user-wise usage</TabsTrigger>
+            <TabsTrigger value="history">Task/Agent-wise Usage Overview</TabsTrigger>
+            <TabsTrigger value="task-history">Task History</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="usage" className="space-y-4">
+          <TabsContent value="daily-usage" className="space-y-4">
             <UsageChart />
+          </TabsContent>
+
+          <TabsContent value="user-usage" className="space-y-4">
+            <UserOverview />
           </TabsContent>
 
           <TabsContent value="history" className="space-y-4">
             <BillingHistory />
           </TabsContent>
 
-          <TabsContent value="payment" className="space-y-4">
-            <PaymentMethods />
+          <TabsContent value="task-history" className="space-y-4">
+            <TaskHistory />
           </TabsContent>
         </Tabs>
 

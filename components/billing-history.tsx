@@ -1,105 +1,55 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Download, CreditCard, Plus } from "lucide-react"
+import { Download } from "lucide-react"
+
+type AgentUsage = {
+  agent_display_name: string
+  estimated_cost: number
+  runs: number
+  total_cpu_hours: number
+  total_cpu_minutes: number
+  total_tokens_in: number
+  total_tokens_out: number
+}
 
 export function BillingHistory() {
-  const transactions = [
-    {
-      id: "TXN-001",
-      date: "2024-01-15",
-      type: "usage",
-      description: "CPU Time - 45.2 hours",
-      amount: -6.78,
-      status: "completed",
-    },
-    {
-      id: "TXN-002",
-      date: "2024-01-15",
-      type: "usage",
-      description: "Token Usage - 250K tokens",
-      amount: -5.0,
-      status: "completed",
-    },
-    {
-      id: "TXN-003",
-      date: "2024-01-14",
-      type: "topoff",
-      description: "Credit Top-off",
-      amount: 50.0,
-      status: "completed",
-    },
-    {
-      id: "TXN-004",
-      date: "2024-01-13",
-      type: "usage",
-      description: "Storage - 1.2 GB",
-      amount: -2.4,
-      status: "completed",
-    },
-    {
-      id: "TXN-005",
-      date: "2024-01-12",
-      type: "usage",
-      description: "CPU Time - 32.1 hours",
-      amount: -4.82,
-      status: "completed",
-    },
-    {
-      id: "TXN-006",
-      date: "2024-01-10",
-      type: "topoff",
-      description: "Credit Top-off",
-      amount: 25.0,
-      status: "completed",
-    },
-  ]
+  const [usageData, setUsageData] = useState<AgentUsage[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const getTransactionIcon = (type: string) => {
-    switch (type) {
-      case "topoff":
-        return <Plus className="h-4 w-4 text-green-600" />
-      case "usage":
-        return <CreditCard className="h-4 w-4 text-blue-600" />
-      default:
-        return <CreditCard className="h-4 w-4" />
-    }
+  useEffect(() => {
+    fetch("http://127.0.0.1:5000/agent-usage")
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch")
+        return res.json()
+      })
+      .then((json) => {
+        setUsageData(json)
+        setLoading(false)
+      })
+      .catch((err) => {
+        console.error("Error loading agent usage:", err)
+        setLoading(false)
+      })
+  }, [])
+
+  if (loading) {
+    return <p className="text-muted-foreground">Loading billing history...</p>
   }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "completed":
-        return (
-          <Badge variant="secondary" className="bg-green-100 text-green-800">
-            Completed
-          </Badge>
-        )
-      case "pending":
-        return (
-          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-            Pending
-          </Badge>
-        )
-      case "failed":
-        return (
-          <Badge variant="secondary" className="bg-red-100 text-red-800">
-            Failed
-          </Badge>
-        )
-      default:
-        return <Badge variant="secondary">{status}</Badge>
-    }
-  }
+  const totalSpent = usageData.reduce((acc, cur) => acc + cur.estimated_cost, 0)
+  const averageDailySpend = totalSpent / 30
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle>Transaction History</CardTitle>
-            <CardDescription>Your recent billing transactions and usage charges</CardDescription>
+            <CardTitle>Agent Usage Overview</CardTitle>
+            <CardDescription>Resource usage and costs grouped by agent</CardDescription>
           </div>
           <Button variant="outline" size="sm">
             <Download className="h-4 w-4 mr-2" />
@@ -108,29 +58,15 @@ export function BillingHistory() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {transactions.map((transaction) => (
-              <div
-                key={transaction.id}
-                className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
-              >
-                <div className="flex items-center gap-4">
-                  {getTransactionIcon(transaction.type)}
-                  <div>
-                    <p className="font-medium">{transaction.description}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(transaction.date).toLocaleDateString()} • {transaction.id}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  {getStatusBadge(transaction.status)}
-                  <div
-                    className={`text-right font-medium ${transaction.amount > 0 ? "text-green-600" : "text-red-600"}`}
-                  >
-                    {transaction.amount > 0 ? "+" : ""}${Math.abs(transaction.amount).toFixed(2)}
-                  </div>
-                </div>
-              </div>
+            {usageData.map((agent, idx) => (
+              <Card key={idx} className="p-4 border">
+                <h2 className="font-bold text-lg">{agent.agent_display_name}</h2>
+                <p>Runs: {agent.runs}</p>
+                <p>Tokens In: {agent.total_tokens_in.toLocaleString()}</p>
+                <p>Tokens Out: {agent.total_tokens_out.toLocaleString()}</p>
+                <p>Total CPU Hours: {agent.total_cpu_hours.toFixed(4)}</p>
+                <p>Estimated Cost: ${agent.estimated_cost.toFixed(2)}</p>
+              </Card>
             ))}
           </div>
         </CardContent>
@@ -142,8 +78,8 @@ export function BillingHistory() {
             <CardTitle className="text-lg">Total Spent (30 days)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$156.42</div>
-            <p className="text-sm text-muted-foreground">+8% from previous month</p>
+            <div className="text-2xl font-bold">${totalSpent.toFixed(2)}</div>
+            <p className="text-sm text-muted-foreground">Summed across all agents</p>
           </CardContent>
         </Card>
 
@@ -152,8 +88,8 @@ export function BillingHistory() {
             <CardTitle className="text-lg">Credits Added (30 days)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$200.00</div>
-            <p className="text-sm text-muted-foreground">4 transactions</p>
+            <div className="text-2xl font-bold">$0.00</div>
+            <p className="text-sm text-muted-foreground">Currently not tracked</p>
           </CardContent>
         </Card>
 
@@ -162,8 +98,8 @@ export function BillingHistory() {
             <CardTitle className="text-lg">Average Daily Spend</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$5.21</div>
-            <p className="text-sm text-muted-foreground">Based on usage patterns</p>
+            <div className="text-2xl font-bold">${averageDailySpend.toFixed(2)}</div>
+            <p className="text-sm text-muted-foreground">Over the last 30 days</p>
           </CardContent>
         </Card>
       </div>
